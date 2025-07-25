@@ -1,11 +1,26 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertUserSchema, insertCulturalProfileSchema, insertCulturalExperienceSchema, insertRecommendationSchema, insertChatSessionSchema } from "@shared/schema";
 import { qlooAPI } from "../client/src/lib/qloo-api";
+import { aiAgentService } from "./openai";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Auth middleware
+  await setupAuth(app);
   // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
   app.post("/api/auth/register", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
@@ -29,7 +44,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cultural Profile routes
-  app.get("/api/profile/:userId", async (req, res) => {
+  app.get("/api/profile/:userId", isAuthenticated, async (req, res) => {
     try {
       const profile = await storage.getCulturalProfile(req.params.userId);
       if (!profile) {
@@ -181,7 +196,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Chat sessions routes
-  app.get("/api/chat/:userId/:agentType", async (req, res) => {
+  app.get("/api/chat/:userId/:agentType", isAuthenticated, async (req, res) => {
     try {
       const { userId, agentType } = req.params;
       let session = await storage.getChatSession(userId, agentType);
@@ -205,7 +220,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/chat/:sessionId/message", async (req, res) => {
+  app.post("/api/chat/:sessionId/message", isAuthenticated, async (req: any, res) => {
     try {
       const { sessionId } = req.params;
       const { message } = req.body;
@@ -214,11 +229,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Message is required" });
       }
 
-      // Get existing session
-      const session = await storage.getChatSession(sessionId, ''); // Need to refactor this
+      // Get existing session by ID
+      const { chatSessions } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq } = await import("drizzle-orm");
+      
+      const [session] = await db.select().from(chatSessions).where(eq(chatSessions.id, sessionId));
       if (!session) {
         return res.status(404).json({ error: "Chat session not found" });
       }
+
+      // Get user profile for AI context
+      const userProfile = await storage.getCulturalProfile(session.userId);
 
       // Add user message
       const userMessage = {
@@ -227,10 +249,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timestamp: new Date().toISOString(),
       };
 
-      // Mock AI response based on agent type
+      // Generate AI response using OpenAI
+      const conversationHistory = session.messages.map(msg => ({
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content
+      }));
+
+      const aiResponseContent = await aiAgentService.generateResponse(
+        session.agentType,
+        message,
+        userProfile,
+        conversationHistory
+      );
+
       const aiResponse = {
         role: 'assistant' as const,
-        content: getAgentResponse(session.agentType, message),
+        content: aiResponseContent,
         timestamp: new Date().toISOString(),
       };
 
@@ -239,6 +273,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ session: updatedSession });
     } catch (error) {
+      console.error("Chat error:", error);
       res.status(500).json({ error: "Failed to send message" });
     }
   });
@@ -292,16 +327,7 @@ function getAgentWelcomeMessage(agentType: string): string {
   return messages[agentType as keyof typeof messages] || "Hello! How can I assist you today?";
 }
 
-function getAgentResponse(agentType: string, userMessage: string): string {
-  // Mock AI responses based on agent type and user message
-  const responses = {
-    career: "Based on your cultural profile and interests, I can see you value sustainability and authentic experiences. Let me analyze your background and suggest some career paths that align with these values...",
-    lifestyle: "I understand you're interested in making more conscious choices. Given your preference for sustainable living, here are some personalized recommendations...",
-    travel: "Your cultural explorer archetype suggests you'd enjoy immersive, authentic experiences. Let me suggest some destinations and activities that match your interests...",
-    wellness: "Considering your holistic approach to well-being, I recommend focusing on practices that integrate your cultural values with personal growth...",
-  };
-  return responses[agentType as keyof typeof responses] || "I understand your question. Let me think about the best way to help you with that...";
-}
+
 
 function calculateDomainBreakdown(experiences: any[]) {
   const domains = experiences.reduce((acc, exp) => {

@@ -1,14 +1,31 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, jsonb, integer, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, jsonb, integer, boolean, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { relations } from "drizzle-orm";
 
+// Session storage table for authentication
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User storage table
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: text("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
   username: text("username").notNull().unique(),
-  email: text("email").notNull().unique(),
   name: text("name").notNull(),
   location: text("location"),
+  language: text("language").default("en"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -62,12 +79,61 @@ export const chatSessions = pgTable("chat_sessions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Schema types
+// User relations
+export const usersRelations = relations(users, ({ many }) => ({
+  culturalProfiles: many(culturalProfiles),
+  culturalExperiences: many(culturalExperiences),
+  recommendations: many(recommendations),
+  chatSessions: many(chatSessions),
+}));
+
+export const culturalProfilesRelations = relations(culturalProfiles, ({ one }) => ({
+  user: one(users, {
+    fields: [culturalProfiles.userId],
+    references: [users.id],
+  }),
+}));
+
+export const culturalExperiencesRelations = relations(culturalExperiences, ({ one }) => ({
+  user: one(users, {
+    fields: [culturalExperiences.userId],
+    references: [users.id],
+  }),
+}));
+
+export const recommendationsRelations = relations(recommendations, ({ one }) => ({
+  user: one(users, {
+    fields: [recommendations.userId],
+    references: [users.id],
+  }),
+}));
+
+export const chatSessionsRelations = relations(chatSessions, ({ one }) => ({
+  user: one(users, {
+    fields: [chatSessions.userId],
+    references: [users.id],
+  }),
+}));
+
+// Schema types for authentication system
+export const upsertUserSchema = createInsertSchema(users).pick({
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  profileImageUrl: true,
+  username: true,
+  name: true,
+  location: true,
+  language: true,
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   email: true,
   name: true,
   location: true,
+  language: true,
 });
 
 export const insertCulturalProfileSchema = createInsertSchema(culturalProfiles).pick({
@@ -109,6 +175,7 @@ export const insertChatSessionSchema = createInsertSchema(chatSessions).pick({
 });
 
 // Inferred types
+export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertCulturalProfile = z.infer<typeof insertCulturalProfileSchema>;

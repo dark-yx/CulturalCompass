@@ -1,5 +1,7 @@
-import { 
-  type User, 
+import {
+  users,
+  type User,
+  type UpsertUser,
   type InsertUser,
   type CulturalProfile,
   type InsertCulturalProfile,
@@ -10,11 +12,15 @@ import {
   type ChatSession,
   type InsertChatSession
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
+// Interface for storage operations
 export interface IStorage {
-  // User methods
+  // User operations
+  // (IMPORTANT) these user operations are mandatory for Replit Auth.
   getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
@@ -39,184 +45,139 @@ export interface IStorage {
   updateChatSession(id: string, messages: ChatSession['messages']): Promise<ChatSession | undefined>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private culturalProfiles: Map<string, CulturalProfile>;
-  private culturalExperiences: Map<string, CulturalExperience>;
-  private recommendations: Map<string, Recommendation>;
-  private chatSessions: Map<string, ChatSession>;
-
-  constructor() {
-    this.users = new Map();
-    this.culturalProfiles = new Map();
-    this.culturalExperiences = new Map();
-    this.recommendations = new Map();
-    this.chatSessions = new Map();
-    
-    // Initialize with demo user
-    this.initializeDemoData();
-  }
-
-  private initializeDemoData() {
-    const demoUserId = "demo-user-1";
-    const demoUser: User = {
-      id: demoUserId,
-      username: "jonathan_davis",
-      email: "jonathan@example.com",
-      name: "Jonathan Davis",
-      location: "Los Angeles, CA",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.users.set(demoUserId, demoUser);
-
-    const demoCulturalProfile: CulturalProfile = {
-      id: randomUUID(),
-      userId: demoUserId,
-      archetype: "Conscious Explorer",
-      culturalScore: 92,
-      interests: [
-        { name: "Sustainable Living", strength: 95 },
-        { name: "Art & Design", strength: 88 },
-        { name: "Travel & Culture", strength: 92 },
-        { name: "Technology", strength: 78 },
-        { name: "Music & Events", strength: 85 }
-      ],
-      values: [
-        { name: "Environmental Responsibility", importance: 95 },
-        { name: "Cultural Diversity", importance: 90 },
-        { name: "Authentic Experiences", importance: 88 },
-        { name: "Personal Growth", importance: 85 },
-        { name: "Community Impact", importance: 87 }
-      ],
-      preferenceTags: [
-        "Eco-Conscious", "Art Enthusiast", "Cultural Explorer", "Foodie", 
-        "Music Lover", "Tech-Savvy", "Adventure Seeker", "Minimalist"
-      ],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.culturalProfiles.set(demoUserId, demoCulturalProfile);
-  }
+export class DatabaseStorage implements IStorage {
+  // User operations
+  // (IMPORTANT) these user operations are mandatory for Replit Auth.
 
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.username === username);
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.email === email);
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { 
-      ...insertUser, 
-      id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values(insertUser)
+      .returning();
     return user;
   }
 
   async getCulturalProfile(userId: string): Promise<CulturalProfile | undefined> {
-    return this.culturalProfiles.get(userId);
+    const { culturalProfiles } = await import("@shared/schema");
+    const [profile] = await db.select().from(culturalProfiles).where(eq(culturalProfiles.userId, userId));
+    return profile;
   }
 
   async createCulturalProfile(insertProfile: InsertCulturalProfile): Promise<CulturalProfile> {
-    const id = randomUUID();
-    const profile: CulturalProfile = {
-      ...insertProfile,
-      id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.culturalProfiles.set(insertProfile.userId, profile);
+    const { culturalProfiles } = await import("@shared/schema");
+    const [profile] = await db
+      .insert(culturalProfiles)
+      .values(insertProfile)
+      .returning();
     return profile;
   }
 
   async updateCulturalProfile(userId: string, updates: Partial<CulturalProfile>): Promise<CulturalProfile | undefined> {
-    const existing = this.culturalProfiles.get(userId);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updates, updatedAt: new Date() };
-    this.culturalProfiles.set(userId, updated);
-    return updated;
+    const { culturalProfiles } = await import("@shared/schema");
+    const [profile] = await db
+      .update(culturalProfiles)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(culturalProfiles.userId, userId))
+      .returning();
+    return profile;
   }
 
   async getCulturalExperiences(userId: string): Promise<CulturalExperience[]> {
-    return Array.from(this.culturalExperiences.values())
-      .filter(exp => exp.userId === userId)
-      .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+    const { culturalExperiences } = await import("@shared/schema");
+    const experiences = await db.select().from(culturalExperiences).where(eq(culturalExperiences.userId, userId));
+    return experiences.sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
   }
 
   async createCulturalExperience(insertExperience: InsertCulturalExperience): Promise<CulturalExperience> {
-    const id = randomUUID();
-    const experience: CulturalExperience = {
-      ...insertExperience,
-      id,
-      createdAt: new Date(),
-    };
-    this.culturalExperiences.set(id, experience);
+    const { culturalExperiences } = await import("@shared/schema");
+    const [experience] = await db
+      .insert(culturalExperiences)
+      .values(insertExperience)
+      .returning();
     return experience;
   }
 
   async getRecommendations(userId: string, limit: number = 10): Promise<Recommendation[]> {
-    return Array.from(this.recommendations.values())
-      .filter(rec => rec.userId === userId)
+    const { recommendations } = await import("@shared/schema");
+    const recs = await db.select().from(recommendations).where(eq(recommendations.userId, userId));
+    return recs
       .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime())
       .slice(0, limit);
   }
 
   async createRecommendation(insertRecommendation: InsertRecommendation): Promise<Recommendation> {
-    const id = randomUUID();
-    const recommendation: Recommendation = {
-      ...insertRecommendation,
-      id,
-      isRead: false,
-      createdAt: new Date(),
-    };
-    this.recommendations.set(id, recommendation);
+    const { recommendations } = await import("@shared/schema");
+    const [recommendation] = await db
+      .insert(recommendations)
+      .values({ ...insertRecommendation, isRead: false })
+      .returning();
     return recommendation;
   }
 
   async markRecommendationAsRead(id: string): Promise<void> {
-    const recommendation = this.recommendations.get(id);
-    if (recommendation) {
-      recommendation.isRead = true;
-      this.recommendations.set(id, recommendation);
-    }
+    const { recommendations } = await import("@shared/schema");
+    await db
+      .update(recommendations)
+      .set({ isRead: true })
+      .where(eq(recommendations.id, id));
   }
 
   async getChatSession(userId: string, agentType: string): Promise<ChatSession | undefined> {
-    return Array.from(this.chatSessions.values())
-      .find(session => session.userId === userId && session.agentType === agentType);
+    const { chatSessions } = await import("@shared/schema");
+    const { and } = await import("drizzle-orm");
+    const [session] = await db.select().from(chatSessions)
+      .where(and(eq(chatSessions.userId, userId), eq(chatSessions.agentType, agentType)));
+    return session;
   }
 
   async createChatSession(insertSession: InsertChatSession): Promise<ChatSession> {
-    const id = randomUUID();
-    const session: ChatSession = {
-      ...insertSession,
-      id,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.chatSessions.set(id, session);
+    const { chatSessions } = await import("@shared/schema");
+    const [session] = await db
+      .insert(chatSessions)
+      .values(insertSession)
+      .returning();
     return session;
   }
 
   async updateChatSession(id: string, messages: ChatSession['messages']): Promise<ChatSession | undefined> {
-    const session = this.chatSessions.get(id);
-    if (!session) return undefined;
-    
-    const updatedSession = { ...session, messages, updatedAt: new Date() };
-    this.chatSessions.set(id, updatedSession);
-    return updatedSession;
+    const { chatSessions } = await import("@shared/schema");
+    const [session] = await db
+      .update(chatSessions)
+      .set({ messages, updatedAt: new Date() })
+      .where(eq(chatSessions.id, id))
+      .returning();
+    return session;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

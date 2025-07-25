@@ -1,16 +1,20 @@
 import { Link, useLocation } from "wouter";
-import { Bell, Compass } from "lucide-react";
+import { Bell, Compass, LogIn, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LanguageSelector } from "@/components/language-selector";
+import { useAuth } from "@/hooks/useAuth";
+import { i18n } from "@/lib/translations";
 
 export function NavigationHeader() {
   const [location] = useLocation();
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   const navItems = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/cultural-gps", label: "Cultural GPS" },
-    { href: "/ai-agents", label: "AI Agents" },
-    { href: "/profile", label: "Profile" },
-    { href: "/analytics", label: "Analytics" },
+    { href: "/dashboard", label: i18n.t("nav.dashboard") },
+    { href: "/cultural-gps", label: i18n.t("nav.culturalGps") },
+    { href: "/ai-agents", label: i18n.t("nav.aiAgents") },
+    { href: "/profile", label: i18n.t("nav.profile") },
+    { href: "/analytics", label: i18n.t("nav.analytics") },
   ];
 
   return (
@@ -47,12 +51,39 @@ export function NavigationHeader() {
           </div>
 
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" className="p-2">
-              <Bell className="text-gray-400 hover:text-gray-600" size={20} />
-            </Button>
-            <div className="w-8 h-8 gradient-accent rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">JD</span>
-            </div>
+            <LanguageSelector />
+            
+            {isLoading ? (
+              <div>Loading...</div>
+            ) : isAuthenticated ? (
+              <>
+                <Button variant="ghost" size="sm" className="p-2">
+                  <Bell className="text-gray-400 hover:text-gray-600" size={20} />
+                </Button>
+                <div className="w-8 h-8 gradient-accent rounded-full flex items-center justify-center">
+                  <span className="text-white text-sm font-medium">
+                    {user?.name?.split(" ").map(n => n[0]).join("") || "U"}
+                  </span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => window.location.href = "/api/logout"}
+                >
+                  <LogOut size={16} className="mr-2" />
+                  {i18n.t("nav.logout")}
+                </Button>
+              </>
+            ) : (
+              <Button 
+                variant="default"
+                size="sm"
+                onClick={() => window.location.href = "/api/login"}
+              >
+                <LogIn size={16} className="mr-2" />
+                {i18n.t("nav.login")}
+              </Button>
+            )}
           </div>
         </div>
       </div>
