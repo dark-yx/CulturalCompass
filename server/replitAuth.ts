@@ -38,8 +38,9 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       maxAge: sessionTtl,
+      sameSite: 'lax',
     },
   });
 }
@@ -63,10 +64,6 @@ async function upsertUser(
     firstName: claims["first_name"],
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
-    username: claims["email"] || `user_${claims["sub"]}`,
-    name: `${claims["first_name"] || ""} ${claims["last_name"] || ""}`.trim() || "User",
-    location: null,
-    language: "en",
   });
 }
 

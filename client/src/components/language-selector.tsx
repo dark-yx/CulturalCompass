@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Globe } from "lucide-react";
 import { i18n } from "@/lib/translations";
 
 export function LanguageSelector() {
-  const [currentLanguage, setCurrentLanguage] = useState(i18n.getLanguage());
+  const [currentLanguage, setCurrentLanguage] = useState('en');
   const availableLanguages = i18n.getAvailableLanguages();
+
+  useEffect(() => {
+    setCurrentLanguage(i18n.getLanguage());
+  }, []);
 
   const handleLanguageChange = (language: string) => {
     i18n.setLanguage(language);

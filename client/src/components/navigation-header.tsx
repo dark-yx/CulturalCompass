@@ -35,17 +35,17 @@ export function NavigationHeader() {
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">
-            {navItems.map((item) => (
+            {isAuthenticated && navItems.map((item) => (
               <Link key={item.href} href={item.href}>
-                <a
-                  className={`font-medium transition-colors ${
+                <span
+                  className={`font-medium transition-colors cursor-pointer ${
                     location === item.href
                       ? "text-[var(--cultural-primary)]"
                       : "text-gray-600 hover:text-[var(--cultural-primary)]"
                   }`}
                 >
                   {item.label}
-                </a>
+                </span>
               </Link>
             ))}
           </div>

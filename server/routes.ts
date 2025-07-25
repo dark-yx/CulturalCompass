@@ -3,7 +3,67 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { insertUserSchema, insertCulturalProfileSchema, insertCulturalExperienceSchema, insertRecommendationSchema, insertChatSessionSchema } from "@shared/schema";
-import { qlooAPI } from "../client/src/lib/qloo-api";
+// Import Qloo API from the correct path
+const QLOO_API_BASE = 'https://hackathon.api.qloo.com';
+const QLOO_API_KEY = 'swv5EqnKP0W4bElCUZOJYCR9C1SMM7A20OeQLOGUJIo';
+
+class QlooAPI {
+  private headers = {
+    'X-API-Key': QLOO_API_KEY,
+    'Content-Type': 'application/json',
+  };
+
+  async searchEntities(query: string, type?: string) {
+    try {
+      const params = new URLSearchParams({
+        q: query,
+        ...(type && { type }),
+      });
+
+      const response = await fetch(`${QLOO_API_BASE}/v1/entities/search?${params}`, {
+        headers: this.headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Qloo API error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error searching Qloo entities:', error);
+      throw error;
+    }
+  }
+
+  async getRecommendations(entityIds: string[], options?: {
+    count?: number;
+    domain?: string;
+  }) {
+    try {
+      const response = await fetch(`${QLOO_API_BASE}/v1/recommendations`, {
+        method: 'POST',
+        headers: this.headers,
+        body: JSON.stringify({
+          inputs: entityIds.map(id => ({ id, type: 'entity' })),
+          count: options?.count || 10,
+          ...(options?.domain && { domain: options.domain }),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Qloo API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.recommendations || [];
+    } catch (error) {
+      console.error('Error getting Qloo recommendations:', error);
+      throw error;
+    }
+  }
+}
+
+const qlooAPI = new QlooAPI();
 import { aiAgentService } from "./openai";
 
 export async function registerRoutes(app: Express): Promise<Server> {

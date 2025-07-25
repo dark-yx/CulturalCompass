@@ -112,6 +112,11 @@ export const translations: Record<string, Translation> = {
       growthOpportunity: "Growth Opportunity",
       socialConnection: "Social Connection",
       optimalTiming: "Optimal Timing"
+    },
+    // Footer
+    footer: {
+      privacyPolicy: "Privacy Policy",
+      termsOfService: "Terms of Service"
     }
   },
   es: {
@@ -223,6 +228,11 @@ export const translations: Record<string, Translation> = {
       growthOpportunity: "Oportunidad de Crecimiento",
       socialConnection: "Conexión Social",
       optimalTiming: "Tiempo Óptimo"
+    },
+    // Footer
+    footer: {
+      privacyPolicy: "Política de Privacidad",
+      termsOfService: "Términos de Servicio"
     }
   }
 };
@@ -233,7 +243,9 @@ export class I18nService {
   setLanguage(language: string) {
     if (translations[language]) {
       this.currentLanguage = language;
-      localStorage.setItem('cultural-compass-language', language);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('cultural-compass-language', language);
+      }
     }
   }
 
@@ -242,14 +254,17 @@ export class I18nService {
   }
 
   init() {
-    const savedLanguage = localStorage.getItem('cultural-compass-language');
-    if (savedLanguage && translations[savedLanguage]) {
-      this.currentLanguage = savedLanguage;
-    } else {
-      // Detect browser language
-      const browserLanguage = navigator.language.split('-')[0];
-      if (translations[browserLanguage]) {
-        this.currentLanguage = browserLanguage;
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined') {
+      const savedLanguage = localStorage.getItem('cultural-compass-language');
+      if (savedLanguage && translations[savedLanguage]) {
+        this.currentLanguage = savedLanguage;
+      } else {
+        // Detect browser language
+        const browserLanguage = navigator.language.split('-')[0];
+        if (translations[browserLanguage]) {
+          this.currentLanguage = browserLanguage;
+        }
       }
     }
   }

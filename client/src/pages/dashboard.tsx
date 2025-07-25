@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin, Briefcase, Heart, TrendingUp, Clock, Star } from "lucide-react";
 import { Link } from "wouter";
+import { i18n } from "@/lib/translations";
 
 const DEMO_USER_ID = "demo-user-1";
 
@@ -21,21 +22,28 @@ export default function Dashboard() {
   const recommendations = recommendationsData?.recommendations || [];
 
   if (!profile) {
-    return <div>Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-[var(--cultural-primary)] mx-auto mb-4"></div>
+          <p className="text-gray-600">{i18n.t("common.loading")}</p>
+        </div>
+      </div>
+    );
   }
 
   const quickActions = [
     {
       icon: MapPin,
-      title: "Cultural GPS",
-      description: "Discover cultural experiences",
+      title: i18n.t("nav.culturalGps"),
+      description: i18n.t("culturalGps.subtitle"),
       href: "/cultural-gps",
       gradient: "gradient-primary",
     },
     {
       icon: Briefcase,
-      title: "Career Guide",
-      description: "Professional development",
+      title: i18n.t("aiAgents.careerNavigator"),
+      description: i18n.t("aiAgents.professionalDevelopment"),
       href: "/ai-agents",
       gradient: "gradient-accent",
     },
@@ -64,11 +72,10 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-[var(--cultural-dark)] mb-4">
-              Your Cultural Dashboard
+              {i18n.t("dashboard.title")}
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Get personalized insights and recommendations across all aspects of
-              your life
+              {i18n.t("dashboard.subtitle")}
             </p>
           </div>
 

@@ -28,56 +28,74 @@ interface Message {
 export default function AIAgents() {
   const [selectedAgent, setSelectedAgent] = useState<AgentType>("career");
   const [messageInput, setMessageInput] = useState("");
+  const { user } = useAuth();
 
   const queryClient = useQueryClient();
+  
+  // Use authenticated user ID instead of demo user
+  const userId = user?.id || "demo-user-1";
 
   const agents: Agent[] = [
     {
       id: "career",
-      name: "Career Navigator",
-      description: "Professional development",
+      name: i18n.t("aiAgents.careerNavigator"),
+      description: i18n.t("aiAgents.professionalDevelopment"),
       icon: Briefcase,
       gradient: "gradient-primary",
     },
     {
       id: "lifestyle",
-      name: "Lifestyle Guide",
-      description: "Ethical consumption",
+      name: i18n.t("aiAgents.lifestyleGuide"),
+      description: i18n.t("aiAgents.ethicalConsumption"),
       icon: Leaf,
       gradient: "gradient-accent",
     },
     {
       id: "travel",
-      name: "Travel Curator",
-      description: "Cultural experiences",
+      name: i18n.t("aiAgents.travelCurator"),
+      description: i18n.t("aiAgents.culturalExperiences"),
       icon: Globe,
       gradient: "gradient-secondary",
     },
     {
       id: "wellness",
-      name: "Wellness Coach",
-      description: "Holistic well-being",
+      name: i18n.t("aiAgents.wellnessCoach"),
+      description: i18n.t("aiAgents.holisticWellbeing"),
       icon: Heart,
       gradient: "bg-gradient-to-r from-yellow-500 to-orange-500",
     },
   ];
 
   const { data: chatData, isLoading } = useQuery({
-    queryKey: ["/api/chat", DEMO_USER_ID, selectedAgent],
+    queryKey: ["/api/chat", userId, selectedAgent],
   });
 
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
-      if (!chatData?.session?.id) return;
+      if (!chatData?.session?.id) {
+        throw new Error("No chat session available");
+      }
       
-      const response = await apiRequest("POST", `/api/chat/${chatData.session.id}/message`, {
-        message,
+      const response = await fetch(`/api/chat/${chatData.session.id}/message`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.setQueryData(["/api/chat", DEMO_USER_ID, selectedAgent], data);
+      queryClient.setQueryData(["/api/chat", userId, selectedAgent], data);
       setMessageInput("");
+    },
+    onError: (error) => {
+      console.error("Error sending message:", error);
     },
   });
 
@@ -102,10 +120,10 @@ export default function AIAgents() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-[var(--cultural-dark)] mb-4">
-            AI Cultural Agents
+            {i18n.t("aiAgents.title")}
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Get specialized guidance from AI agents trained in different domains of cultural intelligence
+            {i18n.t("aiAgents.subtitle")}
           </p>
         </div>
 
@@ -114,7 +132,7 @@ export default function AIAgents() {
           <div className="lg:col-span-1">
             <div className="bg-gray-50 rounded-2xl p-6">
               <h3 className="text-lg font-bold text-[var(--cultural-dark)] mb-4">
-                Choose Your Agent
+                {i18n.t("aiAgents.chooseAgent")}
               </h3>
               
               <div className="space-y-3">
@@ -162,13 +180,13 @@ export default function AIAgents() {
                       {activeAgent?.name}
                     </h4>
                     <p className="text-xs text-gray-600">
-                      Specializes in {activeAgent?.description} and cultural transitions
+                      {i18n.t("aiAgents.specializesIn")} {activeAgent?.description}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="w-2 h-2 bg-[var(--cultural-accent)] rounded-full"></div>
-                  <span className="text-xs text-gray-600">Online</span>
+                  <span className="text-xs text-gray-600">{i18n.t("aiAgents.online")}</span>
                 </div>
               </div>
 
